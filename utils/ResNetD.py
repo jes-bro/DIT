@@ -1,7 +1,7 @@
 import torch.nn as nn
+import torch.nn.init as init
 import torch.utils.checkpoint as cp
-from mmcv.cnn import (build_conv_layer, build_norm_layer, build_plugin_layer,
-                      constant_init, kaiming_init)
+from mmcv.cnn import (build_conv_layer, build_norm_layer, build_plugin_layer, kaiming_init)
 from mmcv.runner import load_checkpoint,load_state_dict
 from mmcv.utils.parrots_wrapper import _BatchNorm
 import torch
@@ -679,20 +679,20 @@ class ResNet(nn.Module):
                 if isinstance(m, nn.Conv2d):
                     kaiming_init(m)
                 elif isinstance(m, (_BatchNorm, nn.GroupNorm)):
-                    constant_init(m, 1)
+                    init.constant_(m, 1)
 
             if self.dcn is not None:
                 for m in self.modules():
                     if isinstance(m, Bottleneck) and hasattr(
                             m, 'conv2_offset'):
-                        constant_init(m.conv2_offset, 0)
+                        init.constant_(m.conv2_offset, 0)
 
             if self.zero_init_residual:
                 for m in self.modules():
                     if isinstance(m, Bottleneck):
-                        constant_init(m.norm3, 0)
+                        init.constant_(m.norm3, 0)
                     elif isinstance(m, BasicBlock):
-                        constant_init(m.norm2, 0)
+                        init.constant_(m.norm2, 0)
         else:
             raise TypeError('pretrained must be a str or None')
 

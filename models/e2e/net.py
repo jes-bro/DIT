@@ -96,11 +96,15 @@ class Net(nn.Module):
             self.lang_encoder=language_encoder(__C,pretrained_emb,token_size)
         else:
             self.lang_encoder=language_encoder(__C,'bert-base-uncased',True)
+        
+        # if __C.LANG_ENC=='static':
+        #     self.lang_encoder= 
+
         self.text_proj = nn.Linear(self.lang_encoder.num_channels, 256)
         self.self_attention = nn.MultiheadAttention(768, 12)
         self.up_sample=nn.UpsamplingBilinear2d(scale_factor=4)
         total = sum([param.nelement() for param in self.lang_encoder.parameters()])
-        state_dict = torch.load('./checkpoints/sam_vit_b_01ec64.pth')
+        state_dict = torch.load('/home/jess/TaskSeg/DIT/models/e2e/checkpoints/sam_vit_b_01ec64.pth')
         keys = state_dict.keys()
         new_state_dict = {}
         for key in keys:

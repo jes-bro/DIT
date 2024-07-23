@@ -15,6 +15,8 @@ import torch.nn.functional as F
 from test import validate
 from utils.utils import  EMA
 from utils.misc import NestedTensor
+
+torch.autograd.set_detect_anomaly(True)
 class ModelLoader:
     def __init__(self, __C):
 
@@ -49,11 +51,12 @@ def train_one_epoch(__C,
     meters_dict = {meter.name: meter for meter in meters}
     progress = ProgressMeter(__C.VERSION,__C.EPOCHS, len(loader), meters, prefix='Train: ')
     end = time.time()
-
+    # breakpoint()
     for ith_batch, data in enumerate(loader):
         data_time.update(time.time() - end)
 
         ref_iter,image_iter,mask_iter,box_iter,gt_box_iter,mask_id,info_iter,ref_mask_iter = data
+        # breakpoint()
         ref_iter = ref_iter.cuda(non_blocking=True)
         image_iter = image_iter.cuda(non_blocking=True)
         mask_iter = mask_iter.cuda(non_blocking=True)

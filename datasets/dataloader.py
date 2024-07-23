@@ -31,7 +31,6 @@ from datasets.randaug import RandAugment
 from utils.utils import label2yolobox
 from utils.box_ops import box_xywh_to_xyxy,box_cxcywh_to_xyxy
 import transformers
-from transformers import BertTokenizer
 from PIL import Image
 
 def read_examples(input_line, unique_id):
@@ -80,12 +79,6 @@ def convert_examples_to_features(examples, seq_length, tokenizer):
         tokens_b = None
         if example.text_b:
             tokens_b = tokenizer.tokenize(example.text_b)
-
-        if tokens_b:
-            # Modifies `tokens_a` and `tokens_b` in place so that the total
-            # length is less than the specified length.
-            # Account for [CLS], [SEP], [SEP] with "- 3"
-            _truncate_seq_pair(tokens_a, tokens_b, seq_length - 3)
         else:
             # Account for [CLS] and [SEP] with "- 2"
             if len(tokens_a) > seq_length - 2:
@@ -181,6 +174,17 @@ def make_transforms(__C, image_set ):
 
     raise ValueError(f'unknown {image_set}')
 
+def box_xyxy_to_xywh(box):
+    """
+    Convert bounding box from (xmin, ymin, xmax, ymax) to (x, y, width, height).
+    """
+    x_min, y_min, x_max, y_max = box.unbind(0)
+    x = x_min
+    y = y_min
+    width = x_max - x_min
+    height = y_max - y_min
+    return torch.tensor([x, y, width, height])
+
 class RefCOCODataSet(Data.Dataset):
     def __init__(self, __C,split):
         super(RefCOCODataSet, self).__init__()
@@ -190,7 +194,8 @@ class RefCOCODataSet(Data.Dataset):
         # --------------------------
         # ---- Raw data loading ---
         # --------------------------
-        stat_refs_list=json.load(open(__C.ANN_PATH[__C.DATASET], 'r'))
+        with open('/home/jess/stat_refs_dict.json', 'r') as f:
+            stat_refs_list = json.load(f)
         total_refs_list=[]
         '''if __C.DATASET in ['vg','merge']:
             total_refs_list = json.load(open(__C.ANN_PATH['merge'], 'r'))+json.load(open(__C.ANN_PATH['refcoco+'], 'r'))+json.load(open(__C.ANN_PATH['refcocog'], 'r'))+json.load(open(__C.ANN_PATH['refcoco'], 'r'))'''
@@ -201,7 +206,7 @@ class RefCOCODataSet(Data.Dataset):
         for split_ in splits:
             self.refs_anno+= stat_refs_list[split_]
         if self.lang_enc == 'bert':
-            self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+            self.tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
 
         refs=[]
@@ -392,10 +397,34 @@ class RefCOCODataSet(Data.Dataset):
 
     def __getitem__(self, idx):
         ref_iter = self.load_refs(idx)
-        image_iter,mask_iter,gt_box_iter,mask_id,iid= self.load_img_feats(idx)
-        w, h = image_iter.size
+        #image_iter,mask_iter,gt_box_iter,mask_id,iid= self.load_img_feats(idx)
+        img_dir = "/home/jess/TaskSeg/final_masks-5/images/resized_images"
+        mask_dir = "/home/jess/TaskSeg/final_masks-5/segs/resized_segs"
+        gt_bbox_dir = "/home/jess/TaskSeg/final_masks-5/gt_bboxs"
+        image_path = os.path.join(img_dir, f'{idx}.png')
+        mask_path = os.path.join(mask_dir, f'{idx}.png')
+        bbox_path = os.path.join(gt_bbox_dir, f'{idx}.npy')
+        gt_box  = np.load(bbox_path)
+        scale = 0.375
+        x_min = gt_box[0]
+        y_min = gt_box[1]
+        x_max = gt_box[2]
+        y_max = gt_box[3]
+        new_x_min = x_min * scale
+        new_y_min = y_min * scale
+        new_x_max = x_max * scale
+        new_y_max = y_max * scale
+        gt_box = np.array([new_x_min, new_y_min, new_x_max, new_y_max])
+        gt_box_iter = box_xyxy_to_xywh(torch.from_numpy(gt_box).float()).cpu().numpy()
+        image_iter = Image.open(image_path).convert("RGB")
+        mask_iter = Image.open(mask_path).convert("L")
+        ref_iter = "The umbrella outside of the umbrella stand."
+        w = 480
+        h = 480
+        mask_id = f'{idx}.png'
+        iid = f'{idx}.png'
         input_dict = {'img': image_iter,
-                      'box': box_xywh_to_xyxy(torch.from_numpy(gt_box_iter[0]).float()),
+                      'box': torch.from_numpy(gt_box).float(),
                       'mask': mask_iter,
                       'text': ref_iter}
         input_dict = self.transforms(input_dict)
@@ -406,18 +435,21 @@ class RefCOCODataSet(Data.Dataset):
         ref_mask = features[0].input_mask
         ref_iter = np.array(ref_iter)
         ref_mask_iter = np.array(ref_mask)
-        info_iter = [h, w, *input_dict['info_img'], iid]
-        #image_iter, mask_iter, box_iter,info_iter=self.preprocess_info(image_iter,mask_iter,gt_box_iter.copy(),iid,flip_box)
+        info_iter = [h, w, input_dict['img'][0].shape[0],input_dict['img'][0].shape[0], input_dict['img'][0].shape[0]-h, input_dict['img'][0].shape[0]-w, idx]
+        info_iter = torch.tensor(info_iter)
+        ref_iter = torch.from_numpy(ref_iter).long()
+        input_dict['box'] = torch.from_numpy(gt_box).float()
+        # breakpoint()
+        # image_iter, mask_iter, box_iter,info_iter=self.preprocess_info(image_iter,mask_iter,gt_box_iter.copy(),iid,flip_box)
         return \
-            torch.from_numpy(ref_iter).long(), \
+            ref_iter, \
             input_dict['img'], \
             input_dict['mask'], \
             input_dict['box'], \
             torch.from_numpy(gt_box_iter).float(), \
             mask_id,\
-            np.array(info_iter),\
-            ref_mask_iter
-
+            info_iter,\
+            torch.from_numpy(ref_mask_iter).float()
     def __len__(self):
         return self.data_size
 
@@ -484,7 +516,7 @@ if __name__ == '__main__':
     cfg=Cfg()
     dataset=RefCOCODataSet(cfg,'val')
     data_loader = DataLoader(dataset,
-                             batch_size=10,
+                             batch_size=2,
                              shuffle=False,
                              pin_memory=True)
     for _,ref_iter,image_iter, mask_iter, box_iter,words,info_iter in data_loader:

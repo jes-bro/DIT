@@ -123,9 +123,23 @@ def validate(__C,
                 # Q = d.inference(5)
                 # mask_pred = np.argmax(Q, axis=0).reshape((416, 416)).astype(np.float32)
 
-
-                mask_gt=np.load(os.path.join(__C.MASK_PATH[__C.DATASET],'%d.npy'%mask_id[i]))
+                mask_dir = "/home/jess/TaskSeg/final_masks-5/segs/resized_segs"
+                mask_path = os.path.join(mask_dir, f'{mask_id[i]}')
+                mask_gt= Image.open(mask_path).convert("L")
+                mask_gt = np.array(mask_gt)
                 mask_pred=mask_processing(mask_pred,info_iter[i])
+                pred_mask_dir = "/home/jess/TaskSeg/final_masks-5/pred_masks"
+                os.makedirs(pred_mask_dir, exist_ok=True)
+                pred_mask_path = os.path.join(pred_mask_dir, f'{mask_id[i]}')
+                # breakpoint()
+                if isinstance(image_iter[i].cpu(), torch.Tensor):
+                    img = image_iter[i].permute(1, 2, 0).cpu().numpy()  # Convert and transpose if it's a tensor
+                else:
+                    img = image_iter[i] # Already a NumPy array, just use it directly
+                msk = mask_pred
+                plt.imshow(img)
+                plt.imshow(msk, alpha=0.5)
+                plt.savefig(pred_mask_path)
                 #single_seg_iou,single_seg_ap, cum_i, cum_u=mask_iou(mask_iter[i].cpu(),mask_pred)
                 single_seg_iou,single_seg_ap, cum_i, cum_u=mask_iou(mask_gt,mask_pred)
                 for item in np.arange(0.5, 1, 0.05):
