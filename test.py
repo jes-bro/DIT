@@ -14,6 +14,7 @@ import torch.optim as Optim
 from importlib import import_module
 from utils.misc import NestedTensor
 from pytorch_pretrained_bert.tokenization import BertTokenizer
+
 class ModelLoader:
     def __init__(self, __C):
 
@@ -23,6 +24,33 @@ class ModelLoader:
 
     def Net(self, __arg1, __arg2, __arg3):
         return self.model_moudle.Net(__arg1, __arg2, __arg3)
+    
+def show_mask(mask, ax, random_color=False):
+    if random_color:
+        color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
+    else:
+        color = np.array([30/255, 144/255, 255/255, 0.6])
+    h, w = mask.shape[-2:]
+    mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
+    ax.imshow(mask_image)
+
+def denormalize(image, mean, std):
+    """
+    Denormalizes a tensor that was normalized with the given mean and std.
+
+    Args:
+        tensor (torch.Tensor): Normalized tensor.
+        mean (list of float): Mean values used for normalization.
+        std (list of float): Standard deviation values used for normalization.
+
+    Returns:
+        torch.Tensor: Denormalized tensor.
+    """
+    channels = image.shape[0]
+    for c in range(channels):
+        image[c] = image[c] * std[c] + mean[c]
+    
+    return image
 
 def validate(__C,
              net,
@@ -91,7 +119,33 @@ def validate(__C,
             i_total=[]
             u_total=[]
             mask=mask.cpu().numpy()
+            # breakpoint()
+            mask_dir = "/home/jess/TaskSeg/final_masks-5/segs/pred_segs_h"
+            os.makedirs(mask_dir, exist_ok=True)
             for i, mask_pred in enumerate(mask):
+                plt.figure(figsize=(10,10))
+                if isinstance(image_iter[i].cpu(), torch.Tensor):
+                    img = denormalize(image_iter[i], __C.MEAN, __C.STD)
+                    # breakpoint()
+                    img = image_iter[i].permute(1, 2, 0).cpu().numpy()  # Convert and transpose if it's a tensor
+                else:
+                    img = image_iter[i] # Already a NumPy array, just use it directly
+                plt.figure()
+                plt.imshow(img)
+                plt.title(f"Image {i+1}", fontsize=18)
+                plt.axis('off')
+                plt.savefig(os.path.join(mask_dir, f'image_{mask_id[i]}.png'))
+                plt.close()
+
+                # Plot and save the mask
+                plt.figure()
+                plt.imshow(img)
+                show_mask(mask_pred, plt.gca()) # Assuming show_mask is a function that overlays the mask
+                plt.title(f"Mask {i+1}", fontsize=18)
+                plt.axis('off')
+                plt.savefig(os.path.join(mask_dir, f'mask_{mask_id[i]}.png'))
+                plt.close()
+  
                 if writer is not None and save_ids is not None and ith_batch*__C.BATCH_SIZE+i in save_ids:
                     ixs=ref_iter[i].cpu().numpy()
                     words=[]
@@ -131,39 +185,39 @@ def validate(__C,
                 pred_mask_dir = "/home/jess/TaskSeg/final_masks-5/pred_masks"
                 os.makedirs(pred_mask_dir, exist_ok=True)
                 pred_mask_path = os.path.join(pred_mask_dir, f'{mask_id[i]}')
-                # breakpoint()
-                if isinstance(image_iter[i].cpu(), torch.Tensor):
-                    img = image_iter[i].permute(1, 2, 0).cpu().numpy()  # Convert and transpose if it's a tensor
-                else:
-                    img = image_iter[i] # Already a NumPy array, just use it directly
-                msk = mask_pred
-                plt.imshow(img)
-                plt.imshow(msk, alpha=0.5)
-                plt.savefig(pred_mask_path)
+                # # breakpoint()
+                # if isinstance(image_iter[i].cpu(), torch.Tensor):
+                #     img = image_iter[i].permute(1, 2, 0).cpu().numpy()  # Convert and transpose if it's a tensor
+                # else:
+                #     img = image_iter[i] # Already a NumPy array, just use it directly
+                # msk = mask_pred
+                # plt.imshow(img)
+                # plt.imshow(msk, alpha=0.5)
+                # plt.savefig(pred_mask_path)
                 #single_seg_iou,single_seg_ap, cum_i, cum_u=mask_iou(mask_iter[i].cpu(),mask_pred)
-                single_seg_iou,single_seg_ap, cum_i, cum_u=mask_iou(mask_gt,mask_pred)
-                for item in np.arange(0.5, 1, 0.05):
-                    mask_aps[item].append(single_seg_ap[item]*100.)
-                seg_iou.append(single_seg_iou)
-                i_total.append(cum_i)
-                u_total.append(cum_u)
-            seg_iou=np.array(seg_iou).astype(np.float32)
-            ie=(box_iou>=0.5).astype(np.float32)*(seg_iou<0.5).astype(np.float32)+(box_iou<0.5).astype(np.float32)*(seg_iou>=0.5).astype(np.float32)
-            inconsistency_error.update(ie.mean()*100., ie.shape[0])
-            box_ap.update((box_iou>0.5).astype(np.float32).mean()*100., box_iou.shape[0])
-            mask_ap.update(seg_iou.mean()*100., seg_iou.shape[0])
-            i_sum.sum_iou(np.array(i_total).sum())
-            u_sum.sum_iou(np.array(u_total).sum())
-            o_iou.update_oiou(i_sum.avg, u_sum.avg)
-            now = 0
-            for item in np.arange(0.5, 1, 0.05):
-                if now == 0:
-                    p_5.update(np.array(mask_aps[item]).mean(),-1)
-                if now == 4:
-                    p_7.update(np.array(mask_aps[item]).mean(),-1)
-                if now == 8:
-                    p_9.update(np.array(mask_aps[item]).mean(),-1)
-                now += 1
+            #     single_seg_iou,single_seg_ap, cum_i, cum_u=mask_iou(mask_gt,mask_pred)
+            #     for item in np.arange(0.5, 1, 0.05):
+            #         mask_aps[item].append(single_seg_ap[item]*100.)
+            #     seg_iou.append(single_seg_iou)
+            #     i_total.append(cum_i)
+            #     u_total.append(cum_u)
+            # seg_iou=np.array(seg_iou).astype(np.float32)
+            # ie=(box_iou>=0.5).astype(np.float32)*(seg_iou<0.5).astype(np.float32)+(box_iou<0.5).astype(np.float32)*(seg_iou>=0.5).astype(np.float32)
+            # inconsistency_error.update(ie.mean()*100., ie.shape[0])
+            # box_ap.update((box_iou>0.5).astype(np.float32).mean()*100., box_iou.shape[0])
+            # mask_ap.update(seg_iou.mean()*100., seg_iou.shape[0])
+            # i_sum.sum_iou(np.array(i_total).sum())
+            # u_sum.sum_iou(np.array(u_total).sum())
+            # o_iou.update_oiou(i_sum.avg, u_sum.avg)
+            # now = 0
+            # for item in np.arange(0.5, 1, 0.05):
+            #     if now == 0:
+            #         p_5.update(np.array(mask_aps[item]).mean(),-1)
+            #     if now == 4:
+            #         p_7.update(np.array(mask_aps[item]).mean(),-1)
+            #     if now == 8:
+            #         p_9.update(np.array(mask_aps[item]).mean(),-1)
+            #     now += 1
 
             reduce_meters(meters_dict, rank, __C)
             if (ith_batch % __C.PRINT_FREQ == 0 or ith_batch==(len(loader)-1)) and main_process(__C,rank):
@@ -201,22 +255,22 @@ def main_worker(gpu,__C):
     train_loader=loader(__C,train_set,gpu,shuffle=(not __C.MULTIPROCESSING_DISTRIBUTED))
 
     loaders=[]
-    prefixs=['val']
-    val_set=RefCOCODataSet(__C,split='val')
+    prefixs=['train']
+    val_set=RefCOCODataSet(__C,split='train')
     val_loader=loader(__C,val_set,gpu,shuffle=False)
     loaders.append(val_loader)
     if __C.DATASET=='refcoco' or __C.DATASET=='refcoco+':
-        testA=RefCOCODataSet(__C,split='testA')
+        testA=RefCOCODataSet(__C,split='train')
         testA_loader=loader(__C,testA,gpu,shuffle=False)
 
-        testB=RefCOCODataSet(__C,split='testB')
+        testB=RefCOCODataSet(__C,split='val')
         testB_loader=loader(__C,testB,gpu,shuffle=False)
         prefixs.extend(['testA','testB'])
         loaders.extend([testA_loader,testB_loader])
     else:# __C.DATASET=='refcocog':
-        test=RefCOCODataSet(__C,split='test')
+        test=RefCOCODataSet(__C,split='train')
         test_loader=loader(__C,test,gpu,shuffle=False)
-        prefixs.append('test')
+        prefixs.append('train')
         loaders.append(test_loader)
 
     net= ModelLoader(__C).Net(
@@ -271,7 +325,7 @@ def main_worker(gpu,__C):
     if main_process(__C,gpu):
         writer = SummaryWriter(log_dir=os.path.join(__C.LOG_PATH,str(__C.VERSION)))
     else:
-        writer = None
+        writer = SummaryWriter(log_dir=os.path.join(__C.LOG_PATH,str(__C.VERSION)))
 
     save_ids=np.random.randint(1, len(val_loader) * __C.BATCH_SIZE, 100) if __C.LOG_IMAGE else None
     for loader_,prefix_ in zip(loaders,prefixs):

@@ -398,11 +398,11 @@ class RefCOCODataSet(Data.Dataset):
     def __getitem__(self, idx):
         ref_iter = self.load_refs(idx)
         #image_iter,mask_iter,gt_box_iter,mask_id,iid= self.load_img_feats(idx)
-        img_dir = "/home/jess/TaskSeg/final_masks-5/images/resized_images"
-        mask_dir = "/home/jess/TaskSeg/final_masks-5/segs/resized_segs"
-        gt_bbox_dir = "/home/jess/TaskSeg/final_masks-5/gt_bboxs"
+        img_dir = "/home/jess/TaskSeg/final_masks-5/images/umbrella"
+        mask_dir = "/home/jess/TaskSeg/final_masks-5/segs/umbrella"
+        gt_bbox_dir = "/home/jess/TaskSeg/final_masks-5/gt_bboxs/umbrella"
         image_path = os.path.join(img_dir, f'{idx}.png')
-        mask_path = os.path.join(mask_dir, f'{idx}.png')
+        mask_path = os.path.join(mask_dir, f'{idx}.npy')
         bbox_path = os.path.join(gt_bbox_dir, f'{idx}.npy')
         gt_box  = np.load(bbox_path)
         scale = 0.375
@@ -417,7 +417,8 @@ class RefCOCODataSet(Data.Dataset):
         gt_box = np.array([new_x_min, new_y_min, new_x_max, new_y_max])
         gt_box_iter = box_xyxy_to_xywh(torch.from_numpy(gt_box).float()).cpu().numpy()
         image_iter = Image.open(image_path).convert("RGB")
-        mask_iter = Image.open(mask_path).convert("L")
+        mk = np.load(mask_path)
+        mask_iter = Image.fromarray(mk)
         ref_iter = "The umbrella outside of the umbrella stand."
         w = 480
         h = 480

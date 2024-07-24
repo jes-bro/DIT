@@ -31,7 +31,7 @@ TRAIN:
   DECAY_EPOCHS: [30,35,37]
   LR_DECAY_R: 0.2
   PRINT_FREQ: 100
-  LOG_PATH: './logs/e2e'
+  LOG_PATH: './logs/e2e/h'
   LOG_IMAGE: True # plot predictions on tensorboard
   #PRETRAIN_WEIGHT: './pretrained_weight/swin_base_patch4_window7_224_22k.pth'
   PRETRAIN_WEIGHT: ''
