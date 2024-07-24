@@ -136,40 +136,28 @@ def make_transforms(__C, image_set ):
 
     if image_set == 'train':
         scales = []
-        if __C.AUG_SCALE:
-            # scales=[256, 272, 288, 304, 320, 336, 352, 368, 384, 400, 416, 432, 448, 464, 480, 496, 512, 528, 544, 560, 576, 592, 608]
-            for i in range(7):
-                scales.append(imsize - 32 * i)
-        else:
-            scales = [imsize]
+        # if __C.AUG_SCALE:
+        #     # scales=[256, 272, 288, 304, 320, 336, 352, 368, 384, 400, 416, 432, 448, 464, 480, 496, 512, 528, 544, 560, 576, 592, 608]
+        #     for i in range(7):
+        #         scales.append(imsize - 32 * i)
+        # else:
+        #     scales = [imsize]
 
-        if __C.AUG_CROP:
-            crop_prob = 0.5
-        else:
-            crop_prob = 0.
+        # if __C.AUG_CROP:
+        #     crop_prob = 0.5
+        # else:
+        #     crop_prob = 0.
 
         return T.Compose([
-            T.RandomSelect(
-                T.RandomResize(scales),
-                T.Compose([
-                    T.RandomResize([400, 500, 600], with_long_side=False),
-                    T.RandomSizeCrop(384, 600),
-                    T.RandomResize(scales),
-                ]),
-                p=crop_prob
-            ),
-            T.ColorJitter(0.4, 0.4, 0.4),
-            T.GaussianBlur(aug_blur=__C.AUG_BLUR),
-            T.RandomHorizontalFlip(),
             T.ToTensor(),
-            T.NormalizeAndPad(mean=__C.MEAN,std=__C.STD,size=imsize, aug_translate=__C.AUG_TRANSLATE)
+            # T.NormalizeAndPad(mean=__C.MEAN,std=__C.STD,size=imsize, aug_translate=__C.AUG_TRANSLATE)
         ])
 
     if image_set in ['val', 'test', 'testA', 'testB']:
         return T.Compose([
-            T.RandomResize([imsize]),
+            # T.RandomResize([imsize]),
             T.ToTensor(),
-            T.NormalizeAndPad(mean=__C.MEAN,std=__C.STD,size=imsize),
+            # T.NormalizeAndPad(mean=__C.MEAN,std=__C.STD,size=imsize),
         ])
 
     raise ValueError(f'unknown {image_set}')
@@ -228,7 +216,7 @@ class InferenceDataSet(Data.Dataset):
         self.input_shape=__C.INPUT_SHAPE
         self.flip_lr=__C.FLIP_LR if split=='train' else False
         # Define run data size
-        self.data_size = len(self.refs_anno)
+        self.data_size = len(self.data)
 
         print(' ========== Dataset size:', self.data_size)
         # ------------------------
@@ -395,10 +383,11 @@ class InferenceDataSet(Data.Dataset):
         box=np.array([self.refs_anno[idx]['bbox']])
         mask = Image.fromarray(mask * 255)
         return image,mask,box,self.refs_anno[idx]['mask_id'],self.refs_anno[idx]['iid']
+    
 
     def __getitem__(self, idx):
         #image_iter,mask_iter,gt_box_iter,mask_id,iid= self.load_img_feats(idx)
-        image_iter = self.data[idx]["image"].convert("RGB")
+        image_iter = Image.fromarray(self.data[idx]["image"]).convert("RGB")
         ref_iter = self.data[idx]["text"]
         input_dict = {'img': image_iter,
                       'text': ref_iter,
@@ -420,6 +409,32 @@ class InferenceDataSet(Data.Dataset):
             input_dict['img'].unsqueeze(0), \
             idx,\
             torch.from_numpy(ref_mask_iter).float()
+    
+## Single image ##
+    # def __getitem__(self, idx):
+    #     #image_iter,mask_iter,gt_box_iter,mask_id,iid= self.load_img_feats(idx)
+    #     image_iter = self.data[idx]["image"].convert("RGB")
+    #     ref_iter = self.data[idx]["text"]
+    #     input_dict = {'img': image_iter,
+    #                   'text': ref_iter,
+    #                   'mask': image_iter.convert("L"),
+    #                   'box':  torch.from_numpy(np.array([0, 0, 480, 480])).float()}
+    #     input_dict = self.transforms(input_dict)
+    #     examples = read_examples(input_dict['text'], idx)
+    #     features = convert_examples_to_features(
+    #         examples=examples, seq_length=self.max_token, tokenizer=self.tokenizer)
+    #     ref_iter = features[0].input_ids
+    #     ref_mask = features[0].input_mask
+    #     ref_iter = np.array(ref_iter)
+    #     ref_mask_iter = np.array(ref_mask)
+    #     ref_iter = torch.from_numpy(ref_iter).long()
+    #     # breakpoint()
+    #     # image_iter, mask_iter, box_iter,info_iter=self.preprocess_info(image_iter,mask_iter,gt_box_iter.copy(),iid,flip_box)
+    #     return \
+    #         ref_iter, \
+    #         input_dict['img'].unsqueeze(0), \
+    #         idx,\
+    #         torch.from_numpy(ref_mask_iter).float()
     def __len__(self):
         return self.data_size
 

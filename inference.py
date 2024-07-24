@@ -5,6 +5,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from utils.logging import *
 import argparse
 import time
+from pathlib import Path
 from utils import config
 import math
 from datasets.dataloader import loader,RefCOCODataSet
@@ -57,15 +58,18 @@ def perform_inference(__C,
              net,
              loader,
              ema=None):
+    # breakpoint()
     if ema is not None:
         ema.apply_shadow()
     net.eval()
     with th.no_grad():
         for ith_batch, data in enumerate(loader):
+            # breakpoint()
             ref_iter, image_iter, mask_id, ref_mask_iter = data
             ref_iter = ref_iter.cuda(non_blocking=True)
             image_iter = image_iter.cuda(non_blocking=True)
             ref_mask_iter = ref_mask_iter.cuda(non_blocking=True)
+            # lang_iter = NestedTensor(ref_iter,ref_mask_iter)
             lang_iter = NestedTensor(ref_iter.unsqueeze(0),ref_mask_iter.unsqueeze(0))
             # breakpoint()
             mask= net(image_iter,lang_iter)
@@ -77,7 +81,7 @@ def perform_inference(__C,
             for i, mask_pred in enumerate(mask):
                 plt.figure(figsize=(10,10))
                 if isinstance(image_iter[i].cpu(), torch.Tensor):
-                    img = denormalize(image_iter[i], __C.MEAN, __C.STD)
+                    img = image_iter[i], __C.MEAN, __C.STD
                     # breakpoint()
                     img = image_iter[i].permute(1, 2, 0).cpu().numpy()  # Convert and transpose if it's a tensor
                 else:
@@ -98,17 +102,19 @@ def perform_inference(__C,
                 plt.savefig(os.path.join(mask_dir, f'mask_{mask_id}.png'))
                 plt.close()
 
-def main_worker(gpu,__C,image,text):
+def main_worker(gpu,__C,images,texts):
     if __C.MULTIPROCESSING_DISTRIBUTED:
         if __C.DIST_URL == "env://" and __C.RANK == -1:
             __C.RANK = int(os.environ["RANK"])
         if __C.MULTIPROCESSING_DISTRIBUTED:
             __C.RANK = __C.RANK* len(__C.GPU) + gpu
         dist.init_process_group(backend=dist.Backend('NCCL'), init_method=__C.DIST_URL, world_size=__C.WORLD_SIZE, rank=__C.RANK)
-
-    data = [{"image":image,"text":text}]
+    data = []
+    for image, text in zip(images, texts):
+        new_datapoint = {"image":image,"text":text}
+        data.append(new_datapoint)
     dataset=InferenceDataSet(__C,data,split='train')
-
+    # breakpoint()
     net= ModelLoader(__C).Net(
         __C,
         dataset.pretrained_emb,
@@ -145,9 +151,22 @@ def main_worker(gpu,__C,image,text):
         if main_process(__C,gpu):
             print("==> loaded checkpoint from {}\n".format(__C.RESUME_PATH) +
                   "==> epoch: {} lr: {} ".format(checkpoint['epoch'],checkpoint['lr']))
-
+    # breakpoint()
     perform_inference(__C,net,dataset)
 
+def load_rgbs_from_directory(category_name):
+    rgb_save_dir = Path("/home/jess/TaskSeg/tsg/jpgs/U-inf-same-front-67-115-2024-07-24 16:39:31.938148")
+
+    rgb_images = []
+
+    for rgb_file in sorted(rgb_save_dir.glob('*.jpg')):
+        if rgb_file.exists():
+            rgb_image = plt.imread(rgb_file)
+            rgb_images.append(rgb_image)
+        else:
+            print(f"Warning: Missing data for {rgb_file.stem}")
+
+    return rgb_images
 
 def get_segmentation(image,text):
     __C = config.load_cfg_from_cfg_file("/home/jess/TaskSeg/DIT/config/e2e.yaml")
@@ -171,5 +190,7 @@ def get_segmentation(image,text):
         main_worker(__C.GPU, __C, image, text)
 
 text = "The umbrella outside of the umbrella stand."
-image = Image.open("/home/jess/TaskSeg/final_masks-5/images/umbrella/1.png")
-get_segmentation(image, text)
+images = load_rgbs_from_directory("U-inf-same-front-67-115-2024-07-24 16:39:31.938148")
+# breakpoint()
+texts = [text for _ in images]
+get_segmentation(images, texts)
