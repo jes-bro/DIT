@@ -20,7 +20,7 @@ MODEL:
   ANCHORS: [[137, 256], [248, 272], [386, 271]]
   ANCH_MASK: [[0, 1, 2]]
   N_CLASSES: 0
-  CHECKPOINT_PATH: '/home/jess/TaskSeg/DIT/logs/e2e/h/30006/ckpt/last.pth'
+  CHECKPOINT_PATH: '/home/jess/TaskSeg/DIT/logs/e2e/van/84933/ckpt/last.pth'
 
 
 TRAIN:
@@ -32,7 +32,7 @@ TRAIN:
   DECAY_EPOCHS: [30,35,37]
   LR_DECAY_R: 0.2
   PRINT_FREQ: 100
-  LOG_PATH: './logs/e2e/h'
+  LOG_PATH: './logs/e2e/van'
   LOG_IMAGE: True # plot predictions on tensorboard
   #PRETRAIN_WEIGHT: './pretrained_weight/swin_base_patch4_window7_224_22k.pth'
   PRETRAIN_WEIGHT: ''
