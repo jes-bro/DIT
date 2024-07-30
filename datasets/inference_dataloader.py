@@ -150,14 +150,14 @@ def make_transforms(__C, image_set ):
 
         return T.Compose([
             T.ToTensor(),
-            # T.NormalizeAndPad(mean=__C.MEAN,std=__C.STD,size=imsize, aug_translate=__C.AUG_TRANSLATE)
+            T.NormalizeAndPad(mean=__C.MEAN,std=__C.STD,size=imsize, aug_translate=__C.AUG_TRANSLATE)
         ])
 
     if image_set in ['val', 'test', 'testA', 'testB']:
         return T.Compose([
             # T.RandomResize([imsize]),
             T.ToTensor(),
-            # T.NormalizeAndPad(mean=__C.MEAN,std=__C.STD,size=imsize),
+            T.NormalizeAndPad(mean=__C.MEAN,std=__C.STD,size=imsize),
         ])
 
     raise ValueError(f'unknown {image_set}')
@@ -387,7 +387,9 @@ class InferenceDataSet(Data.Dataset):
 
     def __getitem__(self, idx):
         #image_iter,mask_iter,gt_box_iter,mask_id,iid= self.load_img_feats(idx)
-        image_iter = Image.fromarray(self.data[idx]["image"]).convert("RGB")
+        # breakpoint()
+        image_data = (self.data[idx]["image"] * 255).astype(np.uint8)
+        image_iter = Image.fromarray(image_data).convert("RGB")
         ref_iter = self.data[idx]["text"]
         input_dict = {'img': image_iter,
                       'text': ref_iter,
@@ -404,6 +406,7 @@ class InferenceDataSet(Data.Dataset):
         ref_iter = torch.from_numpy(ref_iter).long()
         # breakpoint()
         # image_iter, mask_iter, box_iter,info_iter=self.preprocess_info(image_iter,mask_iter,gt_box_iter.copy(),iid,flip_box)
+        # breakpoint()
         return \
             ref_iter, \
             input_dict['img'].unsqueeze(0), \

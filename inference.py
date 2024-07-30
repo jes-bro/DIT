@@ -7,6 +7,8 @@ import argparse
 import time
 from pathlib import Path
 from utils import config
+import ffmpeg
+from natsort import natsorted
 import math
 from datasets.dataloader import loader,RefCOCODataSet
 from datasets.inference_dataloader import InferenceDataSet
@@ -76,16 +78,16 @@ def perform_inference(__C,
             
             mask=mask.cpu().numpy()
             # breakpoint()
-            mask_dir = "/home/jess/TaskSeg/final_masks-5/segs/pred_segs_h-inf"
+            mask_dir = "/home/jess/TaskSeg/final_masks-5/segs/pred_segshhh"
             os.makedirs(mask_dir, exist_ok=True)
             for i, mask_pred in enumerate(mask):
                 plt.figure(figsize=(10,10))
                 if isinstance(image_iter[i].cpu(), torch.Tensor):
-                    img = image_iter[i], __C.MEAN, __C.STD
+                    img = denormalize(image_iter[i], __C.MEAN, __C.STD)
                     # breakpoint()
                     img = image_iter[i].permute(1, 2, 0).cpu().numpy()  # Convert and transpose if it's a tensor
                 else:
-                    img = image_iter[i] # Already a NumPy array, just use it directly
+                    img = denormalize(image_iter[i]) # Already a NumPy array, just use it directly
                 plt.figure()
                 plt.imshow(img)
                 plt.title(f"Image {i+1}", fontsize=18)
@@ -155,11 +157,11 @@ def main_worker(gpu,__C,images,texts):
     perform_inference(__C,net,dataset)
 
 def load_rgbs_from_directory(category_name):
-    rgb_save_dir = Path("/home/jess/TaskSeg/tsg/jpgs/U-inf-same-front-67-115-2024-07-24 16:39:31.938148")
+    rgb_save_dir = Path(category_name)
 
     rgb_images = []
 
-    for rgb_file in sorted(rgb_save_dir.glob('*.jpg')):
+    for rgb_file in natsorted(rgb_save_dir.glob('*.png')):
         if rgb_file.exists():
             rgb_image = plt.imread(rgb_file)
             rgb_images.append(rgb_image)
@@ -189,8 +191,42 @@ def get_segmentation(image,text):
     else:
         main_worker(__C.GPU, __C, image, text)
 
-text = "The umbrella outside of the umbrella stand."
-images = load_rgbs_from_directory("U-inf-same-front-67-115-2024-07-24 16:39:31.938148")
+
+
+def convert_vid_to_rgbs(vid_path: str):
+    # Use ffmpeg to decode the video
+    process = (
+        ffmpeg
+        .input(vid_path)
+        .output('pipe:', format='rawvideo', pix_fmt='rgb24')
+        .run_async(pipe_stdout=True, pipe_stderr=True)
+    )
+
+    # Get video metadata (e.g., width, height)
+    probe = ffmpeg.probe(vid_path)
+    video_info = next(stream for stream in probe['streams'] if stream['codec_type'] == 'video')
+    width = int(video_info['width'])
+    height = int(video_info['height'])
+
+    # Read raw video frames
+    frame_size = width * height * 3
+    frames = []
+    while True:
+        in_bytes = process.stdout.read(frame_size)
+        if not in_bytes:
+            break
+        frame = (
+            np
+            .frombuffer(in_bytes, np.uint8)
+            .reshape([height, width, 3])
+        )
+        frames.append(frame)
+
+    return frames
+
+text = "The trailer tie plate."
+# images = convert_vid_to_rgbs("/home/jess/TaskSeg/DIT/non-pov-13.mp4")
+images = load_rgbs_from_directory("/home/jess/test_h")
 # breakpoint()
 texts = [text for _ in images]
 get_segmentation(images, texts)
