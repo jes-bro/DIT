@@ -136,17 +136,17 @@ def make_transforms(__C, image_set ):
 
     if image_set == 'train':
         scales = []
-        if __C.AUG_SCALE:
-            # scales=[256, 272, 288, 304, 320, 336, 352, 368, 384, 400, 416, 432, 448, 464, 480, 496, 512, 528, 544, 560, 576, 592, 608]
-            for i in range(7):
-                scales.append(imsize - 32 * i)
-        else:
-            scales = [imsize]
+        # if __C.AUG_SCALE:
+        #     # scales=[256, 272, 288, 304, 320, 336, 352, 368, 384, 400, 416, 432, 448, 464, 480, 496, 512, 528, 544, 560, 576, 592, 608]
+        #     for i in range(7):
+        #         scales.append(imsize - 32 * i)
+        # else:
+        #     scales = [imsize]
 
-        if __C.AUG_CROP:
-            crop_prob = 0.5
-        else:
-            crop_prob = 0.
+        # if __C.AUG_CROP:
+        #     crop_prob = 0.5
+        # else:
+        #     crop_prob = 0.
 
         return T.Compose([
             T.ToTensor(),
@@ -387,7 +387,9 @@ class InferenceDataSet(Data.Dataset):
 
     def __getitem__(self, idx):
         #image_iter,mask_iter,gt_box_iter,mask_id,iid= self.load_img_feats(idx)
-        image_iter = Image.fromarray(self.data[idx]["image"]).convert("RGB")
+        # breakpoint()
+        image_data = (self.data[idx]["image"] * 255).astype(np.uint8)
+        image_iter = Image.fromarray(image_data).convert("RGB")
         ref_iter = self.data[idx]["text"]
         input_dict = {'img': image_iter,
                       'text': ref_iter,
@@ -404,6 +406,7 @@ class InferenceDataSet(Data.Dataset):
         ref_iter = torch.from_numpy(ref_iter).long()
         # breakpoint()
         # image_iter, mask_iter, box_iter,info_iter=self.preprocess_info(image_iter,mask_iter,gt_box_iter.copy(),iid,flip_box)
+        # breakpoint()
         return \
             ref_iter, \
             input_dict['img'].unsqueeze(0), \
